@@ -65,7 +65,7 @@ class Node
     /**
      * @return string
      */
-    public function value($property): string
+    public function value($property)
     {
         if(isset($this->properties[$property])) {
             return $this->properties[$property];

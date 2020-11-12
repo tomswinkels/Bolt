@@ -1,5 +1,5 @@
 {
-    "name": "stefanak-michal/bolt",
+    "name": "tomswinkels/bolt",
     "description": "Bolt protocol library over TCP socket",
     "keywords": ["neo4j", "bolt", "socket", "database"],
     "homepage": "https://github.com/stefanak-michal/Bolt",

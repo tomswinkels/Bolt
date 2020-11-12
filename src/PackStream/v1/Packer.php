@@ -1,16 +1,18 @@
 <?php
 
-namespace Bolt;
+namespace Bolt\PackStream\v1;
 
 use Exception;
+use Bolt\PackStream\IPacker;
 
 /**
- * Class Packer
- * Pack bolt messages
+ * Class Packer of PackStream version 1
  *
  * @author Michal Stefanak
+ * @link https://github.com/stefanak-michal/Bolt
+ * @package Bolt\PackStream\v1
  */
-class Packer
+class Packer implements IPacker
 {
     private const SMALL = 16;
     private const MEDIUM = 256;
@@ -24,7 +26,7 @@ class Packer
      * @return string
      * @throws Exception
      */
-    public function pack($signature, ...$params)
+    public function pack($signature, ...$params): string
     {
         $output = '';
 
@@ -70,11 +72,13 @@ class Packer
             $output .= $this->packString($param);
         } elseif (is_array($param)) {
             $keys = array_keys($param);
-            if (count($keys) > 0 && count(array_filter($keys, 'is_int')) == count($keys)) {
+            if (count($param) == 0 || count(array_filter($keys, 'is_int')) == count($keys)) {
                 $output .= $this->packList($param);
             } else {
                 $output .= $this->packMap($param);
             }
+        } elseif (is_object($param)) {
+            $output .= $this->packMap((array)$param);
         } else {
             throw new Exception('Not recognized type of parameter');
         }

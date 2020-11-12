@@ -1,27 +1,54 @@
 <?php
 
-namespace Bolt;
+namespace Bolt\PackStream\v1;
 
 use Bolt\structures\{
     Node,
-    Path,
     Relationship,
-    UnboundRelationship
+    UnboundRelationship,
+    Path,
+    Date,
+    Time,
+    LocalTime,
+    DateTime,
+    DateTimeZoneId,
+    LocalDateTime,
+    Duration,
+    Point2D,
+    Point3D
 };
+use Bolt\PackStream\IUnpacker;
 use Exception;
 
 /**
- * Class Unpacker
- * Unpack bolt messages
+ * Class Unpacker of PackStream version 1
  *
  * @author Michal Stefanak
+ * @link https://github.com/stefanak-michal/Bolt
+ * @package Bolt\PackStream\v1
  */
-class Unpacker
+class Unpacker implements IUnpacker
 {
     /**
      * @var string
      */
     private $message;
+
+    private $structuresLt = [
+        0x4E => [Node::class, 'unpackInteger', 'unpackList', 'unpackMap'],
+        0x52 => [Relationship::class, 'unpackInteger', 'unpackInteger', 'unpackInteger', 'unpackString', 'unpackMap'],
+        0x72 => [UnboundRelationship::class, 'unpackInteger', 'unpackString', 'unpackMap'],
+        0x50 => [Path::class, 'unpackList', 'unpackList', 'unpackList'],
+        0x44 => [Date::class, 'unpackInteger'],
+        0x54 => [Time::class, 'unpackInteger', 'unpackInteger'],
+        0x74 => [LocalTime::class, 'unpackInteger'],
+        0x46 => [DateTime::class, 'unpackInteger', 'unpackInteger', 'unpackInteger'],
+        0x66 => [DateTimeZoneId::class, 'unpackInteger', 'unpackInteger', 'unpackInteger'],
+        0x64 => [LocalDateTime::class, 'unpackInteger', 'unpackInteger'],
+        0x45 => [Duration::class, 'unpackInteger', 'unpackInteger', 'unpackInteger', 'unpackInteger'],
+        0x58 => [Point2D::class, 'unpackInteger', 'unpackFloat', 'unpackFloat'],
+        0x59 => [Point3D::class, 'unpackInteger', 'unpackFloat', 'unpackFloat', 'unpackFloat']
+    ];
 
     /**
      * Unpack message
@@ -30,7 +57,7 @@ class Unpacker
      * @return mixed
      * @throws Exception
      */
-    public function unpack(string $msg, int &$signature = 0)
+    public function unpack(string $msg, int &$signature)
     {
         if (empty($msg)) {
             return null;
@@ -77,7 +104,7 @@ class Unpacker
         if ($result) {
             return $output;
         }
-        
+
         if ($marker == 0xC3) {
             return true;
         }
@@ -87,7 +114,7 @@ class Unpacker
         if ($marker == 0xC0) {
             return null;
         }
-        
+
         $output = $this->unpackFloat($marker, $result);
         if ($result) {
             return $output;
@@ -131,176 +158,43 @@ class Unpacker
             $size = 0b10110000 ^ $marker;
             $result = true;
         }
-        
+
         if (!$result) {
             return null;
         }
-        
+
         $marker = ord($this->next(1));
         $result = false;
-        
-        $output = $this->unpackNode($marker, $result);
-        if ($result) {
-            return $output;
-        }
-        $output = $this->unpackRelationship($marker, $result);
-        if ($result) {
-            return $output;
-        }
-        $output = $this->unpackPath($marker, $result);
-        if ($result) {
-            return $output;
-        }
-        $output = $this->unpackUnboundRelationship($marker, $result);
-        if ($result) {
-            return $output;
+
+        if (array_key_exists($marker, $this->structuresLt)) {
+            $output = $this->unpackSpecificStructure($result, ...$this->structuresLt[$marker]);
+            if ($result)
+                return $output;
         }
 
         return null;
     }
 
     /**
-     * @param int $marker
+     * Dynamic predefined specific structure unpacking
      * @param bool $result
-     * @return Node|null
+     * @param string $class
+     * @param mixed ...$methods
+     * @return mixed
      * @throws Exception
      */
-    private function unpackNode(int $marker, bool &$result = false): ?Node
+    private function unpackSpecificStructure(bool &$result, string $class, ...$methods)
     {
-        if ($marker != 0x4E) {
-            return null;
+        $output = [];
+        foreach ($methods as $method) {
+            $result = false;
+            $marker = ord($this->next(1));
+            $output[] = $this->{$method}($marker, $result);
+            if (!$result)
+                throw new Exception('Structure call for method "' . $method . '" generated unpack error');
         }
 
-        $identityMarker = ord($this->next(1));
-        $identity = $this->unpackInteger($identityMarker, $result);
-        if (!$result) {
-            throw new Exception('Node structure identifier unpack error');
-        }
-
-        $labelsMarker = ord($this->next(1));
-        $labels = $this->unpackList($labelsMarker, $result);
-        if (!$result) {
-            throw new Exception('Node structure labels unpack error');
-        }
-
-        $propertiesMarker = ord($this->next(1));
-        $properties = $this->unpackMap($propertiesMarker, $result);
-        if (!$result) {
-            throw new Exception('Node structure properties unpack error');
-        }
-
-        return new Node($identity, $labels, $properties);
-    }
-
-    /**
-     * @param int $marker
-     * @param bool $result
-     * @return Relationship|null
-     * @throws Exception
-     */
-    private function unpackRelationship(int $marker, bool &$result = false): ?Relationship
-    {
-        if ($marker != 0x52) {
-            return null;
-        }
-
-        $identityMarker = ord($this->next(1));
-        $identity = $this->unpackInteger($identityMarker, $result);
-        if (!$result) {
-            throw new Exception('Relationship structure identifier unpack error');
-        }
-
-        $startNodeIdentityMarker = ord($this->next(1));
-        $startNodeIdentity = $this->unpackInteger($startNodeIdentityMarker, $result);
-        if (!$result) {
-            throw new Exception('Relationship structure start node identifier unpack error');
-        }
-
-        $endNodeIdentityMarker = ord($this->next(1));
-        $endNodeIdentity = $this->unpackInteger($endNodeIdentityMarker, $result);
-        if (!$result) {
-            throw new Exception('Relationship structure end node identifier unpack error');
-        }
-
-        $typeMarker = ord($this->next(1));
-        $type = $this->unpackString($typeMarker, $result);
-        if (!$result) {
-            throw new Exception('Relationship structure type unpack error');
-        }
-
-        $propertiesMarker = ord($this->next(1));
-        $properties = $this->unpackMap($propertiesMarker, $result);
-        if (!$result) {
-            throw new Exception('Relationship structure properties unpack error');
-        }
-
-        return new Relationship($identity, $startNodeIdentity, $endNodeIdentity, $type, $properties);
-    }
-
-    /**
-     * @param int $marker
-     * @param bool $result
-     * @return UnboundRelationship|null
-     * @throws Exception
-     */
-    private function unpackUnboundRelationship(int $marker, bool &$result = false): ?UnboundRelationship
-    {
-        if ($marker != 0x72) {
-            return null;
-        }
-
-        $identityMarker = ord($this->next(1));
-        $identity = $this->unpackInteger($identityMarker, $result);
-        if (!$result) {
-            throw new Exception('UnboundRelationship structure identifier unpack error');
-        }
-
-        $typeMarker = ord($this->next(1));
-        $type = $this->unpackString($typeMarker, $result);
-        if (!$result) {
-            throw new Exception('UnboundRelationship structure type unpack error');
-        }
-
-        $propertiesMarker = ord($this->next(1));
-        $properties = $this->unpackMap($propertiesMarker, $result);
-        if (!$result) {
-            throw new Exception('UnboundRelationship structure properties unpack error');
-        }
-
-        return new UnboundRelationship($identity, $type, $properties);
-    }
-
-    /**
-     * @param int $marker
-     * @param bool $result
-     * @return Path|null
-     * @throws Exception
-     */
-    private function unpackPath(int $marker, bool &$result = false): ?Path
-    {
-        if ($marker != 0x50) {
-            return null;
-        }
-
-        $nodesMarker = ord($this->next(1));
-        $nodes = $this->unpackList($nodesMarker, $result);
-        if (!$result) {
-            throw new Exception('Path structure nodes unpack error');
-        }
-
-        $relationshipsMarker = ord($this->next(1));
-        $relationships = $this->unpackList($relationshipsMarker, $result);
-        if (!$result) {
-            throw new Exception('Path structure relationships unpack error');
-        }
-
-        $sequenceMarker = ord($this->next(1));
-        $sequence = $this->unpackList($sequenceMarker, $result);
-        if (!$result) {
-            throw new Exception('Path structure sequence unpack error');
-        }
-
-        return new Path($nodes, $relationships, $sequence);
+        return new $class(...$output);
     }
 
     /**
@@ -374,19 +268,18 @@ class Unpacker
         if ($marker >> 7 == 0b0) { //+TINY_INT
             $output = $marker;
         } elseif ($marker >> 4 == 0b1111) { //-TINY_INT
-            $output = 0b11110000 ^ $marker;
+            $output = unpack('c', strrev(chr($marker)))[1] ?? 0;
         } elseif ($marker == 0xC8) { //INT_8
             $output = unpack('c', $this->next(1))[1] ?? 0;
         } elseif ($marker == 0xC9) { //INT_16
             $value = $this->next(2);
-            $value = $little ? strrev($value) : $value;
-            $output = unpack('s', $value)[1] ?? 0;
+            $output = unpack('s', $little ? strrev($value) : $value)[1] ?? 0;
         } elseif ($marker == 0xCA) { //INT_32
             $value = $this->next(4);
-            $value = $little ? strrev($value) : $value;
-            $output = unpack('l', $value)[1] ?? 0;
+            $output = unpack('l', $little ? strrev($value) : $value)[1] ?? 0;
         } elseif ($marker == 0xCB) { //INT_64
-            $output = unpack('q', $this->next(8))[1] ?? 0;
+            $value = $this->next(8);
+            $output = unpack("q", $little ? strrev($value) : $value)[1] ?? 0;
         }
 
         if ($output !== null) {

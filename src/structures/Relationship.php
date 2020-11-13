@@ -89,4 +89,24 @@ class Relationship
     {
         return $this->properties;
     }
+   
+    //BELOW FAILBACK FOR GRAPHAWARE
+    
+    /**
+     * @return array
+     */
+    public function values(): array
+    {
+        return $this->properties;
+    }
+    
+    /**
+     * @return string
+     */
+    public function value($property)
+    {
+        if(isset($this->properties[$property])) {
+            return $this->properties[$property];
+        }
+    }
 }

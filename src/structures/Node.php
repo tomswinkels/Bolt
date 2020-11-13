@@ -62,6 +62,16 @@ class Node
         return $this->properties;
     }
    
+    //BELOW FAILBACK FOR GRAPHAWARE
+    
+    /**
+     * @return array
+     */
+    public function values(): array
+    {
+        return $this->properties;
+    }
+    
     /**
      * @return string
      */

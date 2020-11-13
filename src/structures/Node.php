@@ -87,8 +87,8 @@ class Node
      */
     public function hasLabel($label)
     {
-        if(isset($this->labels[$property])) {
-            return $this->labels[$property];
+        if(isset($this->labels[$label])) {
+            return $this->labels[$label];
         }
     }
 }

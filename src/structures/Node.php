@@ -81,4 +81,14 @@ class Node
             return $this->properties[$property];
         }
     }
+    
+    /**
+     * @return array
+     */
+    public function hasLabel($label)
+    {
+        if(isset($this->labels[$property])) {
+            return $this->labels[$property];
+        }
+    }
 }
